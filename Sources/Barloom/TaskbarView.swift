@@ -225,12 +225,10 @@ private struct WindowButton: View {
     @State private var frame: CGRect = .zero
     @State private var dropTargeted = false
 
-    /// Titled buttons get a Windows 10-style underline spanning the button when focused,
-    /// half of it for background windows, and a dot when minimised.
+    /// The focused window's underline spans its titled button; everything else keeps the small dot.
     private var indicatorWidth: CGFloat {
-        guard let labelWidth else { return isFocused ? 16 : 6 }
-        if isFocused { return labelWidth - 16 }
-        return window.isMinimized || window.isAppHidden ? 6 : (labelWidth - 16) / 2
+        guard isFocused else { return 6 }
+        return labelWidth.map { $0 - 16 } ?? 16
     }
 
     private var iconSize: CGFloat {
