@@ -225,6 +225,14 @@ private struct WindowButton: View {
     @State private var frame: CGRect = .zero
     @State private var dropTargeted = false
 
+    /// Titled buttons get a Windows 10-style underline spanning the button when focused,
+    /// half of it for background windows, and a dot when minimised.
+    private var indicatorWidth: CGFloat {
+        guard let labelWidth else { return isFocused ? 16 : 6 }
+        if isFocused { return labelWidth - 16 }
+        return window.isMinimized || window.isAppHidden ? 6 : (labelWidth - 16) / 2
+    }
+
     private var iconSize: CGFloat {
         labelWidth == nil ? model.size.iconSize : (model.size.iconSize * 0.75).rounded()
     }
@@ -253,7 +261,7 @@ private struct WindowButton: View {
 
                 Capsule()
                     .fill(isFocused ? Color.accentColor : Color.secondary.opacity(0.85))
-                    .frame(width: isFocused ? (labelWidth == nil ? 16 : 28) : 6, height: 3)
+                    .frame(width: indicatorWidth, height: 3)
                     .padding(.bottom, 1)
             }
             .contentShape(Rectangle())
