@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -7,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var flyouts = FlyoutController(model: model)
     private var bars: [TaskbarWindow] = []
     private var signalSources: [DispatchSourceSignal] = []
+    private var sizeObserver: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.applyDockPreference()
@@ -14,6 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The relaunched Dock takes a moment to claim its strip of the screen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.rebuildBars()
+        }
+
+        sizeObserver = model.$size.dropFirst().removeDuplicates().sink { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.rebuildBars()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self?.rebuildBars() }
+            }
         }
 
         NotificationCenter.default.addObserver(

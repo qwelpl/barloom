@@ -163,6 +163,9 @@ struct StartMenuView: View {
             Spacer()
 
             Menu {
+                Picker("Taskbar Size", selection: $model.size) {
+                    ForEach(TaskbarSize.allCases) { Text($0.title).tag($0) }
+                }
                 Toggle("Keep Windows Above Taskbar", isOn: $model.managesDock)
                 Toggle("Launch at Login", isOn: Binding(
                     get: { model.launchesAtLogin },

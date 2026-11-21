@@ -28,6 +28,14 @@ final class TaskbarModel: ObservableObject {
         }
     }
 
+    @Published var size: TaskbarSize {
+        didSet {
+            UserDefaults.standard.set(size.rawValue, forKey: TaskbarSize.defaultsKey)
+            // Resize the Dock underneath so windows still stop at the bar's top edge.
+            if managesDock { dock.reserveSpace() }
+        }
+    }
+
     let dock = DockController()
 
     private var pinnedPaths: [String]
@@ -45,6 +53,7 @@ final class TaskbarModel: ObservableObject {
             defaults.set(pinnedPaths, forKey: "pinnedApps")
         }
         managesDock = defaults.object(forKey: "managesDock") as? Bool ?? true
+        size = .current
 
         let center = NSWorkspace.shared.notificationCenter
         let names: [Notification.Name] = [

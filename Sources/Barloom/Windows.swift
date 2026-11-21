@@ -7,7 +7,7 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
 }
 
 final class TaskbarWindow: NSPanel {
-    static let defaultHeight: CGFloat = 48
+    static var defaultHeight: CGFloat { TaskbarSize.current.barHeight }
 
     /// Covers whatever strip the (shrunken) Dock reserves, so windows stop at our top edge.
     static func height(for screen: NSScreen) -> CGFloat {

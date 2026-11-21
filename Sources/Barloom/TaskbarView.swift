@@ -10,7 +10,7 @@ struct TaskbarView: View {
     var body: some View {
         ZStack {
             HStack(spacing: 2) {
-                StartButton(isOpen: flyouts.openKind == .start) {
+                StartButton(size: model.size, isOpen: flyouts.openKind == .start) {
                     flyouts.toggle(.start, on: screen)
                 }
                 ForEach(model.items) { item in
@@ -35,19 +35,20 @@ struct TaskbarView: View {
 }
 
 private struct StartButton: View {
+    let size: TaskbarSize
     let isOpen: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "camera.macro")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: size.glyphSize, weight: .semibold))
                 .foregroundStyle(
                     LinearGradient(colors: [Color(red: 1, green: 0.45, blue: 0.62),
                                             Color(red: 0.55, green: 0.4, blue: 1)],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
-                .frame(width: 44, height: 44)
+                .frame(width: size.buttonSize, height: size.buttonSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PlateButtonStyle(selected: isOpen, pressScale: 0.86))
@@ -69,8 +70,8 @@ private struct TaskIcon: View {
             model.click(item)
         } label: {
             ZStack(alignment: .bottom) {
-                AppIcon(url: item.url, size: 32)
-                    .frame(width: 44, height: 44)
+                AppIcon(url: item.url, size: model.size.iconSize)
+                    .frame(width: model.size.buttonSize, height: model.size.buttonSize)
                     .offset(y: -2)
                 Capsule()
                     .fill(isActive ? Color.accentColor : Color.secondary.opacity(0.85))
@@ -134,10 +135,10 @@ private struct TrayView: View {
                     Power.openSettings("com.apple.Battery-Settings.extension")
                 } label: {
                     Image(systemName: battery.symbol)
-                        .font(.system(size: 14))
+                        .font(.system(size: model.size.trayFontSize + 3))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(battery.percent <= 15 && !battery.onAC ? Color.red : Color.primary)
-                        .frame(width: 34, height: 40)
+                        .frame(width: model.size.buttonSize - 8, height: model.size.buttonSize - 4)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PlateButtonStyle())
@@ -152,11 +153,11 @@ private struct TrayView: View {
                         Text(context.date, format: .dateTime.hour().minute())
                         Text(context.date, format: .dateTime.month(.defaultDigits).day().year())
                     }
-                    .font(.system(size: 11.5))
+                    .font(.system(size: model.size.trayFontSize))
                     .monospacedDigit()
                 }
                 .padding(.horizontal, 8)
-                .frame(height: 40)
+                .frame(height: model.size.buttonSize - 4)
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlateButtonStyle(selected: flyouts.openKind == .calendar))

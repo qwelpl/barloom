@@ -6,7 +6,7 @@ import Foundation
 /// settings come back on quit.
 final class DockController {
     /// Dock reserves `tilesize + 20` points at the bottom of the screen.
-    static let tileSize = Int(TaskbarWindow.defaultHeight) - 20
+    static var tileSize: Int { Int(TaskbarWindow.defaultHeight) - 20 }
 
     private let domain = "com.apple.dock" as CFString
     private let savedKey = "savedDockSettings"
