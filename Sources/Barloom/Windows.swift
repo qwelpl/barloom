@@ -113,9 +113,13 @@ final class FlyoutController: ObservableObject {
         let panel = FlyoutPanel(size: size, root: root)
         panel.onCancel = dismiss
         let bottom = screen.frame.minY + TaskbarWindow.height(for: screen) + 12
-        let x = kind == .start
-            ? screen.frame.midX - size.width / 2
-            : screen.frame.maxX - size.width - 12
+        // Start sits above the Start button: bottom-left when left-aligned, centred otherwise.
+        let x: CGFloat
+        switch kind {
+        case .start where model.centersButtons: x = screen.frame.midX - size.width / 2
+        case .start: x = screen.frame.minX + 12
+        case .calendar: x = screen.frame.maxX - size.width - 12
+        }
         let target = NSRect(x: x, y: bottom, width: size.width, height: size.height)
 
         // Only the alpha animates at the window level; the slide happens inside
