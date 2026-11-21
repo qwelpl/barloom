@@ -11,7 +11,13 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Barloom"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-codesign --force --sign - "$APP" >/dev/null
+# A stable identity keeps macOS permissions across rebuilds (see make-dev-cert.sh);
+# fall back to ad-hoc signing, which loses them every build.
+if security find-certificate -c "Barloom Dev" >/dev/null 2>&1; then
+    codesign --force --sign "Barloom Dev" "$APP" >/dev/null
+else
+    codesign --force --sign - "$APP" >/dev/null
+fi
 echo "Built $APP"
 
 if [[ "${1:-}" == "--run" ]]; then

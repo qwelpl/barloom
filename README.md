@@ -34,7 +34,7 @@ defaults delete com.apple.dock tilesize; defaults write com.apple.dock autohide 
 - **Accessibility** lists and switches windows. Without it the bar falls back to one icon per app and shows an "Allow window buttons" button.
 - **Screen Recording** (optional) is only used for hover thumbnails.
 
-Builds are ad-hoc signed, so macOS forgets both permissions every time you rebuild.
+Run `./scripts/make-dev-cert.sh` once to create a self-signed "Barloom Dev" identity; `build.sh` then signs with it and macOS keeps both permissions across rebuilds (click "Always Allow" the first time codesign asks for the key). Without it builds are ad-hoc signed and the permissions reset every rebuild.
 
 ## Windows key
 
