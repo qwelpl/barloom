@@ -9,6 +9,8 @@ struct TaskbarView: View {
     let previews: PreviewController
     let screen: NSScreen
 
+    @State private var trayWidth: CGFloat = 200
+
     enum Entry: Identifiable {
         case app(TaskItem)
         case window(WindowInfo)
@@ -52,13 +54,18 @@ struct TaskbarView: View {
 
     var body: some View {
         let entries = self.entries
-        ZStack {
-            if model.centersButtons { buttons(entries) }
-            HStack(spacing: 0) {
-                if !model.centersButtons { buttons(entries).padding(.leading, 6) }
-                Spacer(minLength: 0)
-                TrayView(model: model, flyouts: flyouts, screen: screen)
+        GeometryReader { proxy in
+            let labelWidth = labelWidth(entries, barWidth: proxy.size.width)
+            ZStack {
+                if model.centersButtons { buttons(entries, labelWidth: labelWidth) }
+                HStack(spacing: 0) {
+                    if !model.centersButtons { buttons(entries, labelWidth: labelWidth).padding(.leading, 6) }
+                    Spacer(minLength: 0)
+                    TrayView(model: model, flyouts: flyouts, screen: screen)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trayWidth = $0 }
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MicaBackground(screen: screen))
@@ -67,9 +74,8 @@ struct TaskbarView: View {
         }
     }
 
-    private func buttons(_ entries: [Entry]) -> some View {
-        let labelWidth = self.labelWidth(entries)
-        return HStack(spacing: 2) {
+    private func buttons(_ entries: [Entry], labelWidth: CGFloat?) -> some View {
+        HStack(spacing: 2) {
             StartButton(size: model.size, isOpen: flyouts.openKind == .start) {
                 previews.hide()
                 flyouts.toggle(.start, on: screen)
@@ -103,15 +109,17 @@ struct TaskbarView: View {
         .animation(.spring(response: 0.32, dampingFraction: 0.8), value: entries.map(\.id))
     }
 
-    /// Titled buttons shrink as windows pile up, then fall back to icons only.
-    private func labelWidth(_ entries: [Entry]) -> CGFloat? {
+    /// Titled buttons share whatever room the bar has left, up to a readable maximum,
+    /// shrinking as windows pile up and falling back to icons only when they get too narrow.
+    private func labelWidth(_ entries: [Entry], barWidth: CGFloat) -> CGFloat? {
         guard model.showsTitles else { return nil }
         let windows = entries.filter { if case .window = $0 { true } else { false } }.count
         guard windows > 0 else { return nil }
         let launchers = CGFloat(entries.count - windows + 1) * (model.size.buttonSize + 2)
-        let room = screen.frame.width * (model.centersButtons ? 0.7 : 1) - launchers - 260
-        let width = min(200, room / CGFloat(windows) - 2)
-        return width >= 96 ? width : nil
+        // Centered buttons must stay clear of the tray on both sides to remain centered.
+        let free = model.centersButtons ? barWidth - 2 * (trayWidth + 12) : barWidth - trayWidth - 18
+        let width = min(360, (free - launchers) / CGFloat(windows) - 2)
+        return width >= 96 ? width.rounded(.down) : nil
     }
 }
 
