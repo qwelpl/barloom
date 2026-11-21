@@ -3,10 +3,13 @@
 A sleek Windows 11–style taskbar for macOS that replaces the Dock.
 
 - Full-width translucent bar pinned to the bottom of every display
-- Centered Start button + pinned and running apps, with Fluent-style hover plates and running/active indicators
-- Click the focused app to hide it (like minimising), click anything else to bring it forward or launch it
-- Right-click an icon to pin/unpin, show in Finder or quit; drag icons to reorder pins
-- Start menu: instant app search (Return launches the top hit), pinned apps, all apps, power and settings menus
+- One button per window, with its title, for the windows on the current Space and display (or one icon per app)
+- Click a window's button to switch to it, click the focused one to minimise it, middle-click to close it
+- Hover a window's button for a live thumbnail with a close button
+- Pinned apps keep their slot, showing their windows or a launcher icon; drag buttons to reorder
+- Right-click for minimise/restore, close, new window, keep in taskbar and quit
+- Left (Windows 10) or centered (Windows 11) layout, optional grouping of windows by app
+- Start menu: instant app search (Return launches the top hit), pinned, recent and all apps, power and settings menus
 - Four taskbar sizes, from compact to extra large
 - Clock/date with a calendar flyout, battery indicator on laptops, and a show-desktop sliver at the far right
 
@@ -25,6 +28,13 @@ If Barloom ever crashes, relaunching and quitting it restores the Dock, or reset
 ```sh
 defaults delete com.apple.dock tilesize; defaults write com.apple.dock autohide -bool true; killall Dock
 ```
+
+## Permissions
+
+- **Accessibility** lists and switches windows. Without it the bar falls back to one icon per app and shows an "Allow window buttons" button.
+- **Screen Recording** (optional) is only used for hover thumbnails.
+
+Builds are ad-hoc signed, so macOS forgets both permissions every time you rebuild.
 
 ## Windows key
 

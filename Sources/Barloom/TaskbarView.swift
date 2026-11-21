@@ -5,24 +5,58 @@ import UniformTypeIdentifiers
 struct TaskbarView: View {
     @ObservedObject var model: TaskbarModel
     @ObservedObject var flyouts: FlyoutController
+    @ObservedObject var tracker: WindowTracker
+    let previews: PreviewController
     let screen: NSScreen
 
-    var body: some View {
-        ZStack {
-            HStack(spacing: 2) {
-                StartButton(size: model.size, isOpen: flyouts.openKind == .start) {
-                    flyouts.toggle(.start, on: screen)
-                }
-                ForEach(model.items) { item in
-                    TaskIcon(item: item, model: model, isActive: model.isActive(item)) {
-                        flyouts.close()
-                    }
-                }
-            }
-            .animation(.spring(response: 0.32, dampingFraction: 0.8), value: model.items.map(\.id))
+    enum Entry: Identifiable {
+        case app(TaskItem)
+        case window(WindowInfo)
 
+        var id: String {
+            switch self {
+            case .app(let item): "app-\(item.id)"
+            case .window(let window): "win-\(window.id)"
+            }
+        }
+    }
+
+    private var windowMode: Bool { model.buttonMode == .windows && tracker.isTrusted }
+
+    /// Windows mode: one button per window on this display, pinned apps keep their slot
+    /// (as their windows, or as a launcher icon when they have none). Apps mode: one icon per app.
+    private var entries: [Entry] {
+        guard windowMode else { return model.items.map(Entry.app) }
+        let single = NSScreen.screens.count == 1
+        let mine = tracker.windows.filter { single || $0.displayID == screen.displayID }
+        var result: [Entry] = []
+        var used = Set<CGWindowID>()
+        for item in model.items where item.pinned {
+            let windows = mine.filter { $0.pid == item.app?.processIdentifier }
+            if windows.isEmpty {
+                result.append(.app(item))
+            } else {
+                windows.forEach { result.append(.window($0)); used.insert($0.id) }
+            }
+        }
+        var rest = mine.filter { !used.contains($0.id) }
+        if model.groupsByApp {
+            var first: [pid_t: Int] = [:]
+            for (index, window) in rest.enumerated() where first[window.pid] == nil { first[window.pid] = index }
+            rest = rest.enumerated()
+                .sorted { (first[$0.element.pid]!, $0.offset) < (first[$1.element.pid]!, $1.offset) }
+                .map(\.element)
+        }
+        return result + rest.map(Entry.window)
+    }
+
+    var body: some View {
+        let entries = self.entries
+        ZStack {
+            if model.centersButtons { buttons(entries) }
             HStack(spacing: 0) {
-                Spacer()
+                if !model.centersButtons { buttons(entries).padding(.leading, 6) }
+                Spacer(minLength: 0)
                 TrayView(model: model, flyouts: flyouts, screen: screen)
             }
         }
@@ -31,6 +65,53 @@ struct TaskbarView: View {
         .overlay(alignment: .top) {
             Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1)
         }
+    }
+
+    private func buttons(_ entries: [Entry]) -> some View {
+        let labelWidth = self.labelWidth(entries)
+        return HStack(spacing: 2) {
+            StartButton(size: model.size, isOpen: flyouts.openKind == .start) {
+                previews.hide()
+                flyouts.toggle(.start, on: screen)
+            }
+            ForEach(entries) { entry in
+                switch entry {
+                case .app(let item):
+                    TaskIcon(item: item, model: model, isActive: model.isActive(item)) {
+                        flyouts.close()
+                    }
+                case .window(let window):
+                    WindowButton(window: window, labelWidth: labelWidth,
+                                 isFocused: tracker.focusedID == window.id,
+                                 model: model, tracker: tracker, previews: previews, screen: screen) {
+                        flyouts.close()
+                    }
+                }
+            }
+            if model.buttonMode == .windows && !tracker.isTrusted {
+                Button { tracker.requestAccess() } label: {
+                    Label("Allow window buttons", systemImage: "lock.shield")
+                        .font(.system(size: model.size.trayFontSize + 0.5))
+                        .padding(.horizontal, 10)
+                        .frame(height: model.size.buttonSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PlateButtonStyle(selected: true))
+                .help("Barloom needs Accessibility access to list and switch windows")
+            }
+        }
+        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: entries.map(\.id))
+    }
+
+    /// Titled buttons shrink as windows pile up, then fall back to icons only.
+    private func labelWidth(_ entries: [Entry]) -> CGFloat? {
+        guard model.showsTitles else { return nil }
+        let windows = entries.filter { if case .window = $0 { true } else { false } }.count
+        guard windows > 0 else { return nil }
+        let launchers = CGFloat(entries.count - windows + 1) * (model.size.buttonSize + 2)
+        let room = screen.frame.width * (model.centersButtons ? 0.7 : 1) - launchers - 260
+        let width = min(200, room / CGFloat(windows) - 2)
+        return width >= 96 ? width : nil
     }
 }
 
@@ -97,7 +178,7 @@ private struct TaskIcon: View {
         .onDrop(of: [.plainText], isTargeted: $dropTargeted) { providers in
             guard item.pinned, let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-                guard let path = object as? String else { return }
+                guard let path = object as? String, !path.hasPrefix("win:") else { return }
                 DispatchQueue.main.async {
                     if !model.isPinned(URL(fileURLWithPath: path)) { model.pin(URL(fileURLWithPath: path)) }
                     model.movePin(path, before: item.id)
@@ -119,6 +200,101 @@ private struct TaskIcon: View {
         if item.running {
             Divider()
             Button("Quit \(item.name)") { model.quit(item) }
+        }
+    }
+}
+
+private struct WindowButton: View {
+    let window: WindowInfo
+    let labelWidth: CGFloat?
+    let isFocused: Bool
+    @ObservedObject var model: TaskbarModel
+    let tracker: WindowTracker
+    let previews: PreviewController
+    let screen: NSScreen
+    let willAct: () -> Void
+
+    @State private var frame: CGRect = .zero
+    @State private var dropTargeted = false
+
+    private var iconSize: CGFloat {
+        labelWidth == nil ? model.size.iconSize : (model.size.iconSize * 0.75).rounded()
+    }
+
+    var body: some View {
+        Button {
+            willAct()
+            previews.hide()
+            tracker.click(window)
+        } label: {
+            ZStack(alignment: .bottom) {
+                HStack(spacing: 8) {
+                    AppIcon(url: window.appURL, size: iconSize)
+                    if labelWidth != nil {
+                        Text(window.displayTitle)
+                            .font(.system(size: model.size.trayFontSize + 0.5))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.horizontal, labelWidth == nil ? 0 : 10)
+                .frame(width: labelWidth ?? model.size.buttonSize, height: model.size.buttonSize)
+                .offset(y: labelWidth == nil ? -2 : -1)
+                .opacity(window.isMinimized || window.isAppHidden ? 0.5 : 1)
+
+                Capsule()
+                    .fill(isFocused ? Color.accentColor : Color.secondary.opacity(0.85))
+                    .frame(width: isFocused ? (labelWidth == nil ? 16 : 28) : 6, height: 3)
+                    .padding(.bottom, 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlateButtonStyle(selected: isFocused, pressScale: 0.95))
+        .overlay(alignment: .leading) {
+            if dropTargeted {
+                Capsule().fill(Color.accentColor).frame(width: 2, height: 24).offset(x: -2)
+            }
+        }
+        .background(GeometryReader { proxy in
+            Color.clear
+                .onAppear { frame = proxy.frame(in: .global) }
+                .onChange(of: proxy.frame(in: .global)) { _, new in frame = new }
+        })
+        .onHover { hovering in
+            previews.hoverChanged(window, hovering: hovering,
+                                  anchorX: screen.frame.minX + frame.midX, screen: screen)
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.72), value: isFocused)
+        .help(model.showsPreviews ? "" : window.displayTitle)
+        .contextMenu { menu }
+        .onDrag { NSItemProvider(object: "win:\(window.id)" as NSString) }
+        .onDrop(of: [.plainText], isTargeted: $dropTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: NSString.self) { object, _ in
+                guard let string = object as? String, string.hasPrefix("win:"),
+                      let id = CGWindowID(string.dropFirst(4)) else { return }
+                DispatchQueue.main.async { tracker.move(id, before: window.id) }
+            }
+            return true
+        }
+    }
+
+    @ViewBuilder private var menu: some View {
+        Button(window.isMinimized ? "Restore" : "Minimize") {
+            window.isMinimized ? tracker.focus(window) : tracker.minimize(window)
+        }
+        Button("Close Window") { tracker.close(window) }
+        Divider()
+        Button("New \(window.appName) Window") { model.open(window.appURL) }
+        if model.isPinned(window.appURL) {
+            Button("Unpin from taskbar") { model.unpin(window.appURL) }
+        } else {
+            Button("Keep in taskbar") { model.pin(window.appURL) }
+        }
+        Divider()
+        Button("Quit \(window.appName)") {
+            NSRunningApplication(processIdentifier: window.pid)?.terminate()
         }
     }
 }

@@ -15,6 +15,12 @@ struct StartMenuView: View {
         model.items.filter(\.pinned).map { AppEntry(url: $0.url, name: $0.name) }
     }
 
+    private var recent: [AppEntry] {
+        model.recents
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .map { AppEntry(url: $0, name: AppCatalog.displayName($0)) }
+    }
+
     private var results: [AppEntry] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return [] }
@@ -36,6 +42,12 @@ struct StartMenuView: View {
                         sectionHeader("Pinned")
                         LazyVGrid(columns: columns, spacing: 6) {
                             ForEach(pinned) { tile($0) }
+                        }
+                        if !recent.isEmpty {
+                            sectionHeader("Recent").padding(.top, 14)
+                            LazyVGrid(columns: columns, spacing: 6) {
+                                ForEach(recent) { tile($0) }
+                            }
                         }
                         sectionHeader("All apps").padding(.top, 14)
                         LazyVGrid(columns: columns, spacing: 6) {
@@ -163,6 +175,21 @@ struct StartMenuView: View {
             Spacer()
 
             Menu {
+                Picker("Taskbar Buttons", selection: $model.buttonMode) {
+                    Text("One per Window").tag(TaskbarModel.ButtonMode.windows)
+                    Text("One per App").tag(TaskbarModel.ButtonMode.apps)
+                }
+                Toggle("Show Window Titles", isOn: $model.showsTitles)
+                    .disabled(model.buttonMode != .windows)
+                Toggle("Group Windows by App", isOn: $model.groupsByApp)
+                    .disabled(model.buttonMode != .windows)
+                Toggle("Window Previews on Hover", isOn: $model.showsPreviews)
+                    .disabled(model.buttonMode != .windows)
+                Picker("Alignment", selection: $model.centersButtons) {
+                    Text("Left").tag(false)
+                    Text("Center").tag(true)
+                }
+                Divider()
                 Picker("Taskbar Size", selection: $model.size) {
                     ForEach(TaskbarSize.allCases) { Text($0.title).tag($0) }
                 }

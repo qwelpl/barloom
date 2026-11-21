@@ -6,6 +6,9 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = TaskbarModel()
     private lazy var flyouts = FlyoutController(model: model)
+    private let tracker = WindowTracker()
+    private lazy var previews = PreviewController(tracker: tracker, model: model)
+    private var middleClickMonitor: Any?
     private var bars: [TaskbarWindow] = []
     private var signalSources: [DispatchSourceSignal] = []
     private var sizeObserver: AnyCancellable?
@@ -30,6 +33,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildBars() }
+        }
+
+        // Middle-click a window button to close that window.
+        middleClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseUp) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard event.buttonNumber == 2, let self,
+                      let id = self.previews.hoveredWindowID,
+                      let window = self.tracker.windows.first(where: { $0.id == id })
+                else { return event }
+                self.previews.hide()
+                self.tracker.close(window)
+                return nil
+            }
         }
 
         // Lets hotkey tools (skhd, Raycast, Shortcuts) act as a Windows key.
@@ -65,7 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bars = NSScreen.screens.map { screen in
             let bar = TaskbarWindow(
                 screen: screen,
-                root: TaskbarView(model: model, flyouts: flyouts, screen: screen)
+                root: TaskbarView(model: model, flyouts: flyouts, tracker: tracker,
+                                  previews: previews, screen: screen)
             )
             bar.orderFrontRegardless()
             return bar

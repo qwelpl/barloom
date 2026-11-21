@@ -36,6 +36,15 @@ final class TaskbarModel: ObservableObject {
         }
     }
 
+    enum ButtonMode: String, CaseIterable { case windows, apps }
+
+    @Published var buttonMode: ButtonMode { didSet { store(buttonMode.rawValue, "buttonMode") } }
+    @Published var showsTitles: Bool { didSet { store(showsTitles, "showsTitles") } }
+    @Published var groupsByApp: Bool { didSet { store(groupsByApp, "groupsByApp") } }
+    @Published var showsPreviews: Bool { didSet { store(showsPreviews, "showsPreviews") } }
+    @Published var centersButtons: Bool { didSet { store(centersButtons, "centersButtons") } }
+    @Published private(set) var recents: [URL] = []
+
     let dock = DockController()
 
     private var pinnedPaths: [String]
@@ -54,6 +63,18 @@ final class TaskbarModel: ObservableObject {
         }
         managesDock = defaults.object(forKey: "managesDock") as? Bool ?? true
         size = .current
+        buttonMode = defaults.string(forKey: "buttonMode").flatMap(ButtonMode.init) ?? .windows
+        showsTitles = defaults.object(forKey: "showsTitles") as? Bool ?? true
+        groupsByApp = defaults.object(forKey: "groupsByApp") as? Bool ?? false
+        showsPreviews = defaults.object(forKey: "showsPreviews") as? Bool ?? true
+        centersButtons = defaults.object(forKey: "centersButtons") as? Bool ?? false
+        recents = (defaults.stringArray(forKey: "recentApps") ?? []).map { URL(fileURLWithPath: $0) }
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated { self?.noteRecent(app) }
+        })
 
         let center = NSWorkspace.shared.notificationCenter
         let names: [Notification.Name] = [
@@ -82,6 +103,19 @@ final class TaskbarModel: ObservableObject {
         } else if !managesDock {
             dock.restore()
         }
+    }
+
+    private func store(_ value: Any, _ key: String) {
+        UserDefaults.standard.set(value, forKey: key)
+    }
+
+    private func noteRecent(_ app: NSRunningApplication?) {
+        guard let app, app.activationPolicy == .regular, let url = app.bundleURL,
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        var list = recents.filter { $0.path != url.path }
+        list.insert(url, at: 0)
+        recents = Array(list.prefix(6))
+        UserDefaults.standard.set(recents.map(\.path), forKey: "recentApps")
     }
 
     // MARK: - State
