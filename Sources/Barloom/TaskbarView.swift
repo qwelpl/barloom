@@ -41,13 +41,13 @@ private struct StartButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "camera.macro")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(
                     LinearGradient(colors: [Color(red: 1, green: 0.45, blue: 0.62),
                                             Color(red: 0.55, green: 0.4, blue: 1)],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PlateButtonStyle(selected: isOpen, pressScale: 0.86))
@@ -69,11 +69,9 @@ private struct TaskIcon: View {
             model.click(item)
         } label: {
             ZStack(alignment: .bottom) {
-                Image(nsImage: IconCache.icon(for: item.url))
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 26, height: 26)
-                    .frame(width: 40, height: 40)
+                AppIcon(url: item.url, size: 32)
+                    .frame(width: 44, height: 44)
+                    .offset(y: -2)
                 Capsule()
                     .fill(isActive ? Color.accentColor : Color.secondary.opacity(0.85))
                     .frame(width: isActive ? 16 : 6, height: 3)

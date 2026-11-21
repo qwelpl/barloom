@@ -79,6 +79,7 @@ final class FlyoutController: ObservableObject {
     @Published private(set) var openKind: Kind?
 
     private let model: TaskbarModel
+    private let library = AppLibrary()
     private var panel: FlyoutPanel?
     private var clickMonitor: Any?
 
@@ -101,8 +102,9 @@ final class FlyoutController: ObservableObject {
         let dismiss: () -> Void = { [weak self] in self?.close() }
         switch kind {
         case .start:
+            library.reload()
             size = NSSize(width: 640, height: 700)
-            root = AnyView(FlyoutChrome { StartMenuView(model: self.model, apps: AppCatalog.allApps(), dismiss: dismiss) })
+            root = AnyView(FlyoutChrome { StartMenuView(model: self.model, library: self.library, dismiss: dismiss) })
         case .calendar:
             size = NSSize(width: 340, height: 392)
             root = AnyView(FlyoutChrome { CalendarFlyoutView() })
@@ -116,14 +118,17 @@ final class FlyoutController: ObservableObject {
             : screen.frame.maxX - size.width - 12
         let target = NSRect(x: x, y: bottom, width: size.width, height: size.height)
 
-        panel.setFrame(target.offsetBy(dx: 0, dy: -28), display: false)
+        // Only the alpha animates at the window level; the slide happens inside
+        // SwiftUI (FlyoutChrome) so the window server never re-shadows a moving window.
+        panel.setFrame(target, display: false)
         panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
-            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.1, 0.9, 0.2, 1)
-            panel.animator().setFrame(target, display: true)
+            ctx.duration = 0.14
             panel.animator().alphaValue = 1
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak panel] in
+            panel?.invalidateShadow()
         }
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -141,8 +146,7 @@ final class FlyoutController: ObservableObject {
         self.panel = nil
         guard animated else { panel.orderOut(nil); return }
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.12
-            panel.animator().setFrame(panel.frame.offsetBy(dx: 0, dy: -16), display: true)
+            ctx.duration = 0.1
             panel.animator().alphaValue = 0
         }, completionHandler: {
             panel.orderOut(nil)
@@ -152,6 +156,7 @@ final class FlyoutController: ObservableObject {
 
 struct FlyoutChrome<Content: View>: View {
     @ViewBuilder var content: Content
+    @State private var shown = false
 
     var body: some View {
         content
@@ -162,6 +167,10 @@ struct FlyoutChrome<Content: View>: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
             )
+            .offset(y: shown ? 0 : 36)
+            .onAppear {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) { shown = true }
+            }
     }
 }
 

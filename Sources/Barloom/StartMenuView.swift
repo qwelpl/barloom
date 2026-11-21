@@ -3,7 +3,7 @@ import SwiftUI
 
 struct StartMenuView: View {
     @ObservedObject var model: TaskbarModel
-    let apps: [AppEntry]
+    @ObservedObject var library: AppLibrary
     let dismiss: () -> Void
 
     @State private var query = ""
@@ -18,7 +18,7 @@ struct StartMenuView: View {
     private var results: [AppEntry] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return [] }
-        return apps
+        return library.apps
             .filter { $0.name.localizedCaseInsensitiveContains(q) }
             .sorted { rank($0.name, q) < rank($1.name, q) }
     }
@@ -39,7 +39,7 @@ struct StartMenuView: View {
                         }
                         sectionHeader("All apps").padding(.top, 14)
                         LazyVGrid(columns: columns, spacing: 6) {
-                            ForEach(apps) { tile($0) }
+                            ForEach(library.apps) { tile($0) }
                         }
                     }
                     .padding(.horizontal, 32)
@@ -100,17 +100,14 @@ struct StartMenuView: View {
     private func tile(_ entry: AppEntry) -> some View {
         Button { launch(entry) } label: {
             VStack(spacing: 6) {
-                Image(nsImage: IconCache.icon(for: entry.url))
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 36, height: 36)
+                AppIcon(url: entry.url, size: 32)
                 Text(entry.name)
                     .font(.system(size: 11))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .frame(height: 28, alignment: .top)
             }
-            .frame(width: 92, height: 84)
+            .frame(width: 92, height: 82)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlateButtonStyle(pressScale: 0.94))
@@ -120,10 +117,7 @@ struct StartMenuView: View {
     private func row(_ entry: AppEntry, highlighted: Bool) -> some View {
         Button { launch(entry) } label: {
             HStack(spacing: 12) {
-                Image(nsImage: IconCache.icon(for: entry.url))
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 28, height: 28)
+                AppIcon(url: entry.url, size: 32)
                 Text(entry.name).font(.system(size: 13))
                 Spacer()
                 if highlighted {
@@ -133,7 +127,7 @@ struct StartMenuView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(height: 42)
+            .frame(height: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlateButtonStyle(selected: highlighted))

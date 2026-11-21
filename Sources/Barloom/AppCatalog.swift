@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 struct AppEntry: Identifiable, Hashable {
     let url: URL
@@ -69,14 +70,67 @@ enum AppCatalog {
     }
 }
 
+/// Installed apps, scanned off the main thread so the Start menu opens instantly.
+@MainActor
+final class AppLibrary: ObservableObject {
+    @Published private(set) var apps: [AppEntry] = []
+
+    init() { reload() }
+
+    func reload() {
+        Task.detached(priority: .utility) {
+            let apps = AppCatalog.allApps()
+            await MainActor.run {
+                if apps != self.apps { self.apps = apps }
+            }
+        }
+    }
+}
+
+/// App icons rendered once at their exact on-screen pixel size. Letting SwiftUI
+/// shrink the 1024px source every frame is both slow and visibly aliased,
+/// especially on 1x displays.
 @MainActor
 enum IconCache {
     private static var cache: [String: NSImage] = [:]
 
-    static func icon(for url: URL) -> NSImage {
-        if let hit = cache[url.path] { return hit }
-        let image = NSWorkspace.shared.icon(forFile: url.path)
-        cache[url.path] = image
+    static func icon(for url: URL, size: CGFloat, scale: CGFloat) -> NSImage {
+        let key = "\(url.path)|\(size)|\(scale)"
+        if let hit = cache[key] { return hit }
+
+        let source = NSWorkspace.shared.icon(forFile: url.path)
+        let pixels = Int((size * scale).rounded())
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return source }
+        rep.size = NSSize(width: size, height: size)
+
+        NSGraphicsContext.saveGraphicsState()
+        let context = NSGraphicsContext(bitmapImageRep: rep)
+        context?.imageInterpolation = .high
+        NSGraphicsContext.current = context
+        // NSImage picks its hand-tuned representation closest to `pixels` (e.g. the native 32px one).
+        source.draw(in: NSRect(x: 0, y: 0, width: size, height: size), from: .zero,
+                    operation: .copy, fraction: 1, respectFlipped: true,
+                    hints: [.interpolation: NSImageInterpolation.high.rawValue])
+        NSGraphicsContext.restoreGraphicsState()
+
+        let image = NSImage(size: rep.size)
+        image.addRepresentation(rep)
+        cache[key] = image
         return image
+    }
+}
+
+struct AppIcon: View {
+    let url: URL
+    let size: CGFloat
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        Image(nsImage: IconCache.icon(for: url, size: size, scale: scale))
+            .frame(width: size, height: size)
     }
 }
