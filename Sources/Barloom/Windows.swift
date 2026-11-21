@@ -7,14 +7,20 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
 }
 
 final class TaskbarWindow: NSPanel {
-    static let height: CGFloat = 48
+    static let defaultHeight: CGFloat = 48
+
+    /// Covers whatever strip the (shrunken) Dock reserves, so windows stop at our top edge.
+    static func height(for screen: NSScreen) -> CGFloat {
+        max(defaultHeight, screen.visibleFrame.minY - screen.frame.minY)
+    }
 
     init<Content: View>(screen: NSScreen, root: Content) {
         let frame = NSRect(x: screen.frame.minX, y: screen.frame.minY,
-                           width: screen.frame.width, height: Self.height)
+                           width: screen.frame.width, height: Self.height(for: screen))
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)))
+        // One above the Dock, which sits underneath us.
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isOpaque = false
         backgroundColor = .clear
@@ -104,7 +110,7 @@ final class FlyoutController: ObservableObject {
 
         let panel = FlyoutPanel(size: size, root: root)
         panel.onCancel = dismiss
-        let bottom = screen.frame.minY + TaskbarWindow.height + 12
+        let bottom = screen.frame.minY + TaskbarWindow.height(for: screen) + 12
         let x = kind == .start
             ? screen.frame.midX - size.width / 2
             : screen.frame.maxX - size.width - 12

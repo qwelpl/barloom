@@ -17,12 +17,12 @@ A sleek Windows 11–style taskbar for macOS that replaces the Dock.
 
 Produces `build/Barloom.app` (copy it to `/Applications` to keep it). Requires macOS 14+ and the Swift toolchain.
 
-While Barloom runs it auto-hides the macOS Dock with a very long reveal delay; quitting Barloom (Start menu → gear → Quit Barloom) restores your previous Dock settings. Turn this off with "Hide macOS Dock" in the same menu.
+macOS only keeps windows clear of its own Dock, so while Barloom runs it shrinks the real Dock to exactly the bar's height and covers it. Zoomed, tiled and newly opened windows then stop at the top of the taskbar. The bar uses an opaque Mica-style background (blurred wallpaper) so the Dock never shows through. Quitting Barloom (Start menu → gear → Quit Barloom) restores your previous Dock settings; "Keep Windows Above Taskbar" in the same menu turns this off.
 
-If Barloom ever crashes and leaves the Dock hidden:
+If Barloom ever crashes, relaunching and quitting it restores the Dock, or reset it by hand:
 
 ```sh
-defaults delete com.apple.dock autohide-delay; killall Dock
+defaults delete com.apple.dock tilesize; defaults write com.apple.dock autohide -bool true; killall Dock
 ```
 
 ## Windows key
@@ -31,4 +31,4 @@ Bind any hotkey tool (skhd, Raycast, Shortcuts, BetterTouchTool) to post the dis
 
 ## Limitations
 
-macOS has no API for reserving screen space, so zoomed windows can extend underneath the bar.
+The Dock reserves space on one display at a time, so on secondary displays windows can still extend under the bar.

@@ -169,7 +169,7 @@ struct StartMenuView: View {
             Spacer()
 
             Menu {
-                Toggle("Hide macOS Dock", isOn: $model.hidesSystemDock)
+                Toggle("Keep Windows Above Taskbar", isOn: $model.managesDock)
                 Toggle("Launch at Login", isOn: Binding(
                     get: { model.launchesAtLogin },
                     set: { model.launchesAtLogin = $0 }

@@ -1,51 +1,71 @@
 import Foundation
 
-/// Pushes the macOS Dock out of the way (auto-hide with an effectively infinite
-/// reveal delay) and puts the user's original settings back on quit.
+/// macOS only keeps windows clear of the Dock, so Barloom shrinks the real Dock
+/// to exactly the bar's height and sits on top of it. Zoom, tiling and new window
+/// placement then all stop at the top of the bar. The user's original Dock
+/// settings come back on quit.
 final class DockController {
+    /// Dock reserves `tilesize + 20` points at the bottom of the screen.
+    static let tileSize = Int(TaskbarWindow.defaultHeight) - 20
+
     private let domain = "com.apple.dock" as CFString
-    private let savedKey = "savedDockState"
+    private let savedKey = "savedDockSettings"
 
-    private(set) var isHidden = false
+    private enum Kind { case bool, float, string }
+    private let keys: [(String, Kind)] = [
+        ("autohide", .bool),
+        ("autohide-delay", .float),
+        ("tilesize", .float),
+        ("magnification", .bool),
+        ("orientation", .string),
+    ]
 
-    func hide() {
+    private(set) var isManaged = false
+
+    func reserveSpace() {
         let defaults = UserDefaults.standard
         // Only snapshot once: after a crash the live values are already ours.
         if defaults.dictionary(forKey: savedKey) == nil {
             var saved: [String: Any] = [:]
-            if let autohide = CFPreferencesCopyAppValue("autohide" as CFString, domain) as? Bool {
-                saved["autohide"] = autohide
-            }
-            if let delay = CFPreferencesCopyAppValue("autohide-delay" as CFString, domain) as? Double {
-                saved["autohide-delay"] = delay
+            for (key, _) in keys {
+                if let value = CFPreferencesCopyAppValue(key as CFString, domain) {
+                    saved[key] = value
+                }
             }
             defaults.set(saved, forKey: savedKey)
         }
-        write(["write", "com.apple.dock", "autohide", "-bool", "true"])
-        write(["write", "com.apple.dock", "autohide-delay", "-float", "1000"])
+        defaultsCommand(["write", "com.apple.dock", "autohide", "-bool", "false"])
+        defaultsCommand(["delete", "com.apple.dock", "autohide-delay"])
+        defaultsCommand(["write", "com.apple.dock", "tilesize", "-int", String(Self.tileSize)])
+        defaultsCommand(["write", "com.apple.dock", "magnification", "-bool", "false"])
+        defaultsCommand(["write", "com.apple.dock", "orientation", "-string", "bottom"])
         relaunchDock()
-        isHidden = true
+        isManaged = true
     }
 
     func restore() {
         let defaults = UserDefaults.standard
         guard let saved = defaults.dictionary(forKey: savedKey) else { return }
-        if let autohide = saved["autohide"] as? Bool {
-            write(["write", "com.apple.dock", "autohide", "-bool", autohide ? "true" : "false"])
-        } else {
-            write(["delete", "com.apple.dock", "autohide"])
-        }
-        if let delay = saved["autohide-delay"] as? Double {
-            write(["write", "com.apple.dock", "autohide-delay", "-float", String(delay)])
-        } else {
-            write(["delete", "com.apple.dock", "autohide-delay"])
+        for (key, kind) in keys {
+            guard let value = saved[key] else {
+                defaultsCommand(["delete", "com.apple.dock", key])
+                continue
+            }
+            switch kind {
+            case .bool:
+                defaultsCommand(["write", "com.apple.dock", key, "-bool", (value as? Bool ?? false) ? "true" : "false"])
+            case .float:
+                defaultsCommand(["write", "com.apple.dock", key, "-float", "\(value)"])
+            case .string:
+                defaultsCommand(["write", "com.apple.dock", key, "-string", "\(value)"])
+            }
         }
         defaults.removeObject(forKey: savedKey)
         relaunchDock()
-        isHidden = false
+        isManaged = false
     }
 
-    private func write(_ args: [String]) {
+    private func defaultsCommand(_ args: [String]) {
         run("/usr/bin/defaults", args)
     }
 

@@ -27,7 +27,7 @@ struct TaskbarView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VisualEffect(material: .menu))
+        .background(MicaBackground(screen: screen))
         .overlay(alignment: .top) {
             Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1)
         }
@@ -181,7 +181,7 @@ private struct ShowDesktopSliver: View {
                     .frame(width: 1, height: 16)
                 Color.clear.frame(width: 9)
             }
-            .frame(height: TaskbarWindow.height)
+            .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -21,9 +21,9 @@ final class TaskbarModel: ObservableObject {
     @Published private(set) var items: [TaskItem] = []
     @Published private(set) var activePID: pid_t = 0
     @Published private(set) var battery: BatteryState?
-    @Published var hidesSystemDock: Bool {
+    @Published var managesDock: Bool {
         didSet {
-            UserDefaults.standard.set(hidesSystemDock, forKey: "hidesSystemDock")
+            UserDefaults.standard.set(managesDock, forKey: "managesDock")
             applyDockPreference()
         }
     }
@@ -44,7 +44,7 @@ final class TaskbarModel: ObservableObject {
             pinnedPaths = AppCatalog.defaultPinned().map(\.path)
             defaults.set(pinnedPaths, forKey: "pinnedApps")
         }
-        hidesSystemDock = defaults.object(forKey: "hidesSystemDock") as? Bool ?? true
+        managesDock = defaults.object(forKey: "managesDock") as? Bool ?? true
 
         let center = NSWorkspace.shared.notificationCenter
         let names: [Notification.Name] = [
@@ -68,9 +68,9 @@ final class TaskbarModel: ObservableObject {
     }
 
     func applyDockPreference() {
-        if hidesSystemDock, !dock.isHidden {
-            dock.hide()
-        } else if !hidesSystemDock {
+        if managesDock, !dock.isManaged {
+            dock.reserveSpace()
+        } else if !managesDock {
             dock.restore()
         }
     }
