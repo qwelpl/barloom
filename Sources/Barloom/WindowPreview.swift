@@ -5,10 +5,11 @@ import SwiftUI
 enum WindowCapture {
     static var hasAccess: Bool { CGPreflightScreenCaptureAccess() }
 
+    /// Registers Barloom in the Screen Recording list, then opens that settings page
+    /// so the user can switch it on. macOS only applies the grant after a relaunch.
     static func requestAccess() {
-        if !CGRequestScreenCaptureAccess() {
-            Power.openSettings("com.apple.preference.security?Privacy_ScreenCapture")
-        }
+        _ = CGRequestScreenCaptureAccess()
+        Power.openSettings("com.apple.preference.security?Privacy_ScreenCapture")
     }
 
     static func thumbnail(of id: CGWindowID, fitting box: CGSize, scale: CGFloat) async -> NSImage? {
@@ -153,30 +154,44 @@ private struct PreviewCard: View {
                     .help("Close window")
                 }
 
-                Button {
-                    tracker.focus(window)
-                    controller.hide()
-                } label: {
-                    ZStack {
-                        if let image {
-                            Image(nsImage: image)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
-                        } else if !WindowCapture.hasAccess {
-                            VStack(spacing: 8) {
-                                AppIcon(url: window.appURL, size: 48)
-                                Button("Allow Screen Recording for previews") { WindowCapture.requestAccess() }
-                                    .buttonStyle(.link)
-                                    .font(.system(size: 11))
-                            }
-                        } else {
-                            AppIcon(url: window.appURL, size: 48).opacity(window.isMinimized ? 0.6 : 1)
+                if !WindowCapture.hasAccess {
+                    // Kept outside the thumbnail button so the click isn't swallowed by "switch to window".
+                    Button {
+                        controller.hide()
+                        WindowCapture.requestAccess()
+                    } label: {
+                        VStack(spacing: 10) {
+                            AppIcon(url: window.appURL, size: 48)
+                            Text("Allow Screen Recording for previews")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                            Text("Opens System Settings")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
                         }
+                        .frame(width: box.width, height: box.height)
+                        .contentShape(Rectangle())
                     }
-                    .frame(width: box.width, height: box.height)
-                    .contentShape(Rectangle())
+                    .buttonStyle(PlateButtonStyle())
+                } else {
+                    Button {
+                        tracker.focus(window)
+                        controller.hide()
+                    } label: {
+                        ZStack {
+                            if let image {
+                                Image(nsImage: image)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
+                            } else {
+                                AppIcon(url: window.appURL, size: 48).opacity(window.isMinimized ? 0.6 : 1)
+                            }
+                        }
+                        .frame(width: box.width, height: box.height)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(12)
