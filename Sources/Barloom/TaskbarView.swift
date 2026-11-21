@@ -130,13 +130,9 @@ private struct StartButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "camera.macro")
-                .font(.system(size: size.glyphSize, weight: .semibold))
-                .foregroundStyle(
-                    LinearGradient(colors: [Color(red: 1, green: 0.45, blue: 0.62),
-                                            Color(red: 0.55, green: 0.4, blue: 1)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
+            Image(systemName: "circle.grid.2x2.fill")
+                .font(.system(size: size.glyphSize * 0.8, weight: .regular))
+                .foregroundStyle(Color.primary.opacity(0.85))
                 .frame(width: size.buttonSize, height: size.buttonSize)
                 .contentShape(Rectangle())
         }
