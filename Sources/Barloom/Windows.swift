@@ -7,6 +7,9 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
 }
 
 final class TaskbarWindow: NSPanel {
+    /// The display this bar belongs to; `screen` goes nil while the window is ordered out.
+    private(set) weak var screenRef: NSScreen?
+
     static var defaultHeight: CGFloat { TaskbarSize.current.barHeight }
 
     /// Covers whatever strip the (shrunken) Dock reserves, so windows stop at our top edge.
@@ -29,6 +32,7 @@ final class TaskbarWindow: NSPanel {
         isMovable = false
         contentView = FirstMouseHostingView(rootView: root)
         setFrame(frame, display: true)
+        screenRef = screen
     }
 
     override var canBecomeKey: Bool { false }

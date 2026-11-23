@@ -35,6 +35,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.rebuildBars() }
         }
 
+        // Step aside for full-screen apps: their Space has no Dock, so neither do we.
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateFullScreenVisibility() }
+                // The window list settles once the Space transition finishes.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self?.updateFullScreenVisibility() }
+            }
+        }
+
         // Middle-click a window button to close that window.
         middleClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseUp) { [weak self] event in
             MainActor.assumeIsolated {
@@ -87,5 +97,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bar.orderFrontRegardless()
             return bar
         }
+        updateFullScreenVisibility()
+    }
+
+    private func updateFullScreenVisibility() {
+        let covered = FullScreen.coveredDisplays()
+        for bar in bars {
+            guard let screen = bar.screenRef else { continue }
+            if covered.contains(screen.displayID) {
+                if bar.isVisible {
+                    flyouts.close(animated: false)
+                    previews.hide()
+                    bar.orderOut(nil)
+                }
+            } else if !bar.isVisible {
+                bar.orderFrontRegardless()
+            }
+        }
+    }
+}
+
+enum FullScreen {
+    /// Displays whose current Space shows a full-screen window: a normal-layer
+    /// window that covers the whole display, menu bar included.
+    static func coveredDisplays() -> Set<CGDirectDisplayID> {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]],
+              let primary = NSScreen.screens.first
+        else { return [] }
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        var covered = Set<CGDirectDisplayID>()
+        for info in list {
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  (info[kCGWindowOwnerPID as String] as? pid_t) != ownPID,
+                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: dict)
+            else { continue }
+            for screen in NSScreen.screens {
+                // CG window bounds are top-left based on the primary display.
+                let f = screen.frame
+                let cg = CGRect(x: f.minX, y: primary.frame.maxY - f.maxY, width: f.width, height: f.height)
+                if bounds.equalTo(cg) { covered.insert(screen.displayID) }
+            }
+        }
+        return covered
     }
 }

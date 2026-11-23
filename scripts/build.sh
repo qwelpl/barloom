@@ -11,6 +11,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Barloom"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # A stable identity keeps macOS permissions across rebuilds (see make-dev-cert.sh);
 # fall back to ad-hoc signing, which loses them every build.
 if security find-certificate -c "Barloom Dev" >/dev/null 2>&1; then
